@@ -61,16 +61,25 @@ try:
 except Exception:
     saved_api_key = ""
 
-typed_api_key = st.sidebar.text_input(
+sidebar_api_key = st.sidebar.text_input(
     "OpenAI API Key",
     value="",
     type="password",
     placeholder="sk-...",
     help="Paste your OpenAI API key here. The key is only used for this Streamlit session.",
+    key="sidebar_api_key",
 )
-openai_api_key = typed_api_key.strip() or saved_api_key
+main_api_key = st.text_input(
+    "OpenAI API Key",
+    value="",
+    type="password",
+    placeholder="Paste your OpenAI API key here.",
+    help="You can paste the API key here or in the sidebar.",
+    key="main_api_key",
+)
+openai_api_key = main_api_key.strip() or sidebar_api_key.strip() or saved_api_key
 
-if saved_api_key and not typed_api_key.strip():
+if saved_api_key and not main_api_key.strip() and not sidebar_api_key.strip():
     st.sidebar.success("Using API key from Streamlit secrets.")
 
 if st.sidebar.button("Clear chat"):
