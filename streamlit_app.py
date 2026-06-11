@@ -1,6 +1,44 @@
 import streamlit as st
 from openai import OpenAI
 
+LANGUAGES = {
+    "한국어": {
+        "name": "Korean",
+        "chat_placeholder": "무엇이든 물어보세요.",
+        "api_key_help": "계속하려면 OpenAI API 키를 입력해 주세요.",
+    },
+    "English": {
+        "name": "English",
+        "chat_placeholder": "Ask anything.",
+        "api_key_help": "Please add your OpenAI API key to continue.",
+    },
+    "日本語": {
+        "name": "Japanese",
+        "chat_placeholder": "何でも聞いてください。",
+        "api_key_help": "続行するにはOpenAI APIキーを入力してください。",
+    },
+    "中文": {
+        "name": "Chinese",
+        "chat_placeholder": "请随时提问。",
+        "api_key_help": "请添加 OpenAI API 密钥以继续。",
+    },
+    "Français": {
+        "name": "French",
+        "chat_placeholder": "Posez votre question.",
+        "api_key_help": "Veuillez ajouter votre clé API OpenAI pour continuer.",
+    },
+    "Español": {
+        "name": "Spanish",
+        "chat_placeholder": "Pregunta lo que quieras.",
+        "api_key_help": "Agrega tu clave API de OpenAI para continuar.",
+    },
+    "Deutsch": {
+        "name": "German",
+        "chat_placeholder": "Frag mich etwas.",
+        "api_key_help": "Bitte gib deinen OpenAI API-Schlüssel ein, um fortzufahren.",
+    },
+}
+
 # Show title and description.
 st.title("💬 Chatbot")
 st.write(
@@ -9,12 +47,23 @@ st.write(
     "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
 )
 
+selected_language = st.sidebar.selectbox(
+    "Response language",
+    options=list(LANGUAGES.keys()),
+    index=0,
+)
+language_config = LANGUAGES[selected_language]
+
+if st.sidebar.button("Clear chat"):
+    st.session_state.messages = []
+    st.rerun()
+
 # Ask user for their OpenAI API key via `st.text_input`.
 # Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
 # via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
 openai_api_key = st.text_input("OpenAI API Key", type="password")
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+    st.info(language_config["api_key_help"], icon="🗝️")
 else:
 
     # Create an OpenAI client.
@@ -32,7 +81,7 @@ else:
 
     # Create a chat input field to allow the user to enter a message. This will display
     # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+    if prompt := st.chat_input(language_config["chat_placeholder"]):
 
         # Store and display the current prompt.
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -40,12 +89,24 @@ else:
             st.markdown(prompt)
 
         # Generate a response using the OpenAI API.
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    f"Always answer in {language_config['name']}. "
+                    "If the user writes in another language, still respond in the selected language. "
+                    "Keep answers helpful, natural, and concise."
+                ),
+            }
+        ]
+        messages.extend(
+            {"role": m["role"], "content": m["content"]}
+            for m in st.session_state.messages
+        )
+
         stream = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
+            messages=messages,
             stream=True,
         )
 
