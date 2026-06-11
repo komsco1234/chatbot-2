@@ -1,5 +1,5 @@
 import streamlit as st
-from openai import OpenAI
+from openai import AuthenticationError, OpenAI, RateLimitError
 
 LANGUAGES = {
     "한국어": {
@@ -47,6 +47,8 @@ st.write(
     "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
 )
 
+st.sidebar.header("Settings")
+
 selected_language = st.sidebar.selectbox(
     "Response language",
     options=list(LANGUAGES.keys()),
@@ -54,14 +56,27 @@ selected_language = st.sidebar.selectbox(
 )
 language_config = LANGUAGES[selected_language]
 
+try:
+    saved_api_key = st.secrets.get("OPENAI_API_KEY", "")
+except Exception:
+    saved_api_key = ""
+
+typed_api_key = st.sidebar.text_input(
+    "OpenAI API Key",
+    value="",
+    type="password",
+    placeholder="sk-...",
+    help="Paste your OpenAI API key here. The key is only used for this Streamlit session.",
+)
+openai_api_key = typed_api_key.strip() or saved_api_key
+
+if saved_api_key and not typed_api_key.strip():
+    st.sidebar.success("Using API key from Streamlit secrets.")
+
 if st.sidebar.button("Clear chat"):
     st.session_state.messages = []
     st.rerun()
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
 if not openai_api_key:
     st.info(language_config["api_key_help"], icon="🗝️")
 else:
@@ -104,14 +119,19 @@ else:
             for m in st.session_state.messages
         )
 
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            stream=True,
-        )
+        try:
+            stream = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                stream=True,
+            )
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            # Stream the response to the chat using `st.write_stream`, then store it in
+            # session state.
+            with st.chat_message("assistant"):
+                response = st.write_stream(stream)
+            st.session_state.messages.append({"role": "assistant", "content": response})
+        except AuthenticationError:
+            st.error("OpenAI API key is invalid or missing. Please check the key in the sidebar and try again.")
+        except RateLimitError:
+            st.error("OpenAI API rate limit or quota was reached. Please check your OpenAI account usage and try again later.")
